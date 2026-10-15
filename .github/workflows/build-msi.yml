@@ -200,6 +200,49 @@ jobs:
           path: contrib/win32/openssh/OpenSSHReleasex64.log
           if-no-files-found: warn
 
+      - name: Stage LibreSSL runtime for MSI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $projectDir = Join-Path $env:GITHUB_WORKSPACE 'contrib/win32/openssh'
+          $dependencyRoot = Join-Path $projectDir 'vcpkg_installed/x64-custom/x64-custom'
+          $runtimeDir = Join-Path $dependencyRoot 'bin'
+          $sourceDll = Join-Path $runtimeDir 'libcrypto.dll'
+          $payloadDir = Join-Path $env:GITHUB_WORKSPACE 'bin/x64/Release'
+
+          if (-not (Test-Path -LiteralPath $sourceDll -PathType Leaf)) {
+            Write-Host "DLL files found under the dependency installation:"
+
+            if (Test-Path -LiteralPath $dependencyRoot -PathType Container) {
+              Get-ChildItem -LiteralPath $dependencyRoot -Recurse -File -Filter '*.dll' |
+                Select-Object FullName, Length |
+                Format-Table -AutoSize |
+                Out-Host
+            }
+
+            throw "Expected Release runtime DLL missing: $sourceDll"
+          }
+
+          if (-not (Test-Path -LiteralPath $payloadDir -PathType Container)) {
+            throw "OpenSSH build output directory missing: $payloadDir"
+          }
+
+          $destinationDll = Join-Path $payloadDir 'libcrypto.dll'
+          Copy-Item -LiteralPath $sourceDll -Destination $destinationDll -Force
+
+          $sourceHash = (Get-FileHash -LiteralPath $sourceDll -Algorithm SHA256).Hash
+          $destinationHash = (Get-FileHash -LiteralPath $destinationDll -Algorithm SHA256).Hash
+
+          if ($sourceHash -ne $destinationHash) {
+            throw 'The staged libcrypto.dll does not match the dependency DLL.'
+          }
+
+          Get-Item -LiteralPath $destinationDll |
+            Select-Object FullName, Length |
+            Format-List |
+            Out-Host
+
       - name: Build MSI
         shell: pwsh
         run: |

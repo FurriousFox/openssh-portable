@@ -75,16 +75,45 @@ jobs:
         shell: pwsh
         env:
           CLEAN_BUILD: ${{ inputs.clean }}
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: |
+          $ErrorActionPreference = 'Stop'
+
+          $dependencyRoot = Join-Path $env:GITHUB_WORKSPACE 'contrib/win32/openssh/vcpkg_installed/x64-custom/x64-custom'
+
+          $includeDir = Join-Path $dependencyRoot 'include'
+          $libraryDir = Join-Path $dependencyRoot 'lib'
+          $opensslHeader = Join-Path $includeDir 'openssl/opensslv.h'
+
+          if (-not (Test-Path -LiteralPath $opensslHeader -PathType Leaf)) {
+            throw "LibreSSL header missing: $opensslHeader"
+          }
+
+          if (-not (Test-Path -LiteralPath $libraryDir -PathType Container)) {
+            throw "Dependency library directory missing: $libraryDir"
+          }
+
+          $separator = [System.IO.Path]::DirectorySeparatorChar
+          $includeDir = $includeDir.Replace([char]'/', $separator)
+          $libraryDir = $libraryDir.Replace([char]'/', $separator)
+
+          $env:INCLUDE = "$includeDir;$env:INCLUDE"
+          $env:LIB = "$libraryDir;$env:LIB"
+
+          Write-Host "Dependency includes: $includeDir"
+          Write-Host "Dependency libraries: $libraryDir"
+
           $buildArgs = @{
             Configuration = 'Release'
             Architecture = 'x64'
           }
+
           if ($env:CLEAN_BUILD -eq 'true') {
             $buildArgs['Clean'] = $true
           }
-          .\.github\tools\Start-OpenSSHBuild.ps1 @buildArgs
 
+          & './.github/tools/Start-OpenSSHBuild.ps1' @buildArgs
+          
       - name: Diagnose OpenSSH build failure
         if: steps.build_binaries.outcome == 'failure'
         shell: pwsh

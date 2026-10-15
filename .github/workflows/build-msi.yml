@@ -35,7 +35,9 @@ jobs:
         shell: pwsh
         run: |
           $wixSearchRoots = @(
+            (Join-Path ${env:ProgramFiles} 'WiX Toolset v3.*'),
             (Join-Path ${env:ProgramFiles(x86)} 'WiX Toolset v3.*'),
+            (Join-Path ${env:ProgramFiles} 'MSBuild\Microsoft\WiX'),
             (Join-Path ${env:ProgramFiles(x86)} 'MSBuild\Microsoft\WiX'),
             (Join-Path $env:ChocolateyInstall 'lib\wixtoolset\tools')
           )

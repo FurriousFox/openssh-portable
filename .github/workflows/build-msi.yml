@@ -62,6 +62,8 @@ jobs:
         run: .\.github\tools\Install-VcpkgDependencies.ps1 -Bootstrap
 
       - name: Build OpenSSH binaries
+        id: build_binaries
+        continue-on-error: true
         shell: pwsh
         env:
           CLEAN_BUILD: ${{ inputs.clean }}
@@ -74,6 +76,29 @@ jobs:
             $buildArgs['Clean'] = $true
           }
           .\.github\tools\Start-OpenSSHBuild.ps1 @buildArgs
+
+      - name: Diagnose OpenSSH build failure
+        if: steps.build_binaries.outcome == 'failure'
+        shell: pwsh
+        run: |
+          $logPath = Join-Path $env:GITHUB_WORKSPACE 'contrib\win32\openssh\OpenSSHReleasex64.log'
+          if (Test-Path $logPath) {
+            Write-Host 'MSBuild errors and warnings:'
+            Select-String -Path $logPath -Pattern ': error ', ': warning ', 'Build FAILED' |
+              Select-Object -Last 100 |
+              ForEach-Object { Write-Host $_.Line }
+          } else {
+            Write-Host "Build log not found: $logPath"
+          }
+          throw 'OpenSSH binary build failed; see the diagnostic output and uploaded build log.'
+
+      - name: Upload OpenSSH build log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # main
+        with:
+          name: OpenSSH-x64-Release-build-log
+          path: contrib/win32/openssh/OpenSSHReleasex64.log
+          if-no-files-found: warn
 
       - name: Build MSI
         shell: pwsh

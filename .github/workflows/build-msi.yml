@@ -1,0 +1,78 @@
+name: Build Windows MSI
+
+on:
+  workflow_dispatch:
+    inputs:
+      clean:
+        description: Clean the OpenSSH build output before compiling
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build-msi:
+    name: Build OpenSSH x64 Release MSI
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out OpenSSH
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # main
+
+      - name: Check out vcpkg
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # main
+        with:
+          repository: microsoft/vcpkg
+          path: vcpkg
+          fetch-depth: 1
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install WiX Toolset 3.11
+        shell: pwsh
+        run: choco install wixtoolset --version=3.11.2 --no-progress --yes
+
+      - name: Install vcpkg dependencies
+        shell: pwsh
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+        run: .\.github\tools\Install-VcpkgDependencies.ps1 -Bootstrap
+
+      - name: Build OpenSSH binaries
+        shell: pwsh
+        env:
+          CLEAN_BUILD: ${{ inputs.clean }}
+        run: |
+          $buildArgs = @{
+            Configuration = 'Release'
+            Architecture = 'x64'
+          }
+          if ($env:CLEAN_BUILD -eq 'true') {
+            $buildArgs['Clean'] = $true
+          }
+          .\.github\tools\Start-OpenSSHBuild.ps1 @buildArgs
+
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          $wixToolPath = Join-Path ${env:ProgramFiles(x86)} 'WiX Toolset v3.11\bin'
+          if (-not (Test-Path (Join-Path $wixToolPath 'Wix.targets'))) {
+            throw "WiX Toolset 3.11 was not found at $wixToolPath"
+          }
+          msbuild .\contrib\win32\install\openssh.wixproj `
+            /t:Rebuild `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:ProductVersion=10.6.0 `
+            /p:WixToolPath="$wixToolPath\" `
+            /m
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # main
+        with:
+          name: OpenSSH-Win64-v10.6.0.0
+          path: contrib/win32/install/bin/x64/Release/openssh.msi
+          if-no-files-found: error

@@ -296,6 +296,7 @@ try {
             try {
                 & $vcpkgExe install `
                     --triplet $triplet `
+                    --x-install-root=$(Join-Path $installedDir $triplet) `
                     --overlay-triplets=$overlayTripletsDir `
                     --overlay-ports=$overlayPortsDir
                 $exit = $LASTEXITCODE

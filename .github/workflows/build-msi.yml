@@ -59,7 +59,11 @@ jobs:
         shell: pwsh
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
-        run: .\.github\tools\Install-VcpkgDependencies.ps1 -Bootstrap
+        run: |
+          $result = .\.github\tools\Install-VcpkgDependencies.ps1 -Bootstrap
+          if (-not $result.Success) {
+            throw "Install-VcpkgDependencies failed: $($result.Message)"
+          }
 
       - name: Build OpenSSH binaries
         id: build_binaries

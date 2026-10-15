@@ -26,7 +26,7 @@ jobs:
         with:
           repository: microsoft/vcpkg
           path: vcpkg
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2

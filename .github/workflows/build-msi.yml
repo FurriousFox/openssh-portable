@@ -64,6 +64,10 @@ jobs:
           if (-not $result.Success) {
             throw "Install-VcpkgDependencies failed: $($result.Message)"
           }
+          $opensslHeader = Join-Path $env:GITHUB_WORKSPACE 'contrib\win32\openssh\vcpkg_installed\x64-custom\x64-custom\include\openssl\opensslv.h'
+          if (-not (Test-Path $opensslHeader)) {
+            throw "Expected OpenSSL compatibility header was not installed: $opensslHeader"
+          }
 
       - name: Build OpenSSH binaries
         id: build_binaries

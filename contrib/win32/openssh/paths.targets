@@ -4,6 +4,7 @@
     <OpenSSH-Src-Path>$(SolutionDir)..\..\..\</OpenSSH-Src-Path>
     <OpenSSH-Bin-Path>$(SolutionDir)..\..\..\bin\</OpenSSH-Bin-Path>
     <OpenSSH-Lib-Path>$(SolutionDir)lib\</OpenSSH-Lib-Path>
+    <OpenSSH-Vcpkg-Include-Path>$(MSBuildThisFileDirectory)vcpkg_installed\$(VcpkgTriplet)\$(VcpkgTriplet)\include</OpenSSH-Vcpkg-Include-Path>
     <UseOpenSSL>true</UseOpenSSL>
     <SSLLib>libcrypto.lib;</SSLLib>
     <ZLibName Condition="'$(Configuration)' == 'Debug'">zsd.lib</ZLibName>

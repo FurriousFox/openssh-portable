@@ -31,42 +31,29 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Ensure WiX Toolset 3.x
+      - name: Install WiX Toolset if missing
         shell: pwsh
         run: |
-          $wixSearchRoots = @(
-            (Join-Path ${env:ProgramFiles} 'WiX Toolset v3.*'),
-            (Join-Path ${env:ProgramFiles(x86)} 'WiX Toolset v3.*'),
-            (Join-Path ${env:ProgramFiles} 'MSBuild\Microsoft\WiX'),
-            (Join-Path ${env:ProgramFiles(x86)} 'MSBuild\Microsoft\WiX'),
-            (Join-Path $env:ChocolateyInstall 'lib\wixtoolset\tools')
-          )
-          $wixTargets = Get-ChildItem -Path $wixSearchRoots -Filter 'Wix.targets' -File -Recurse -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if (-not $wixTargets) {
+          $installed = choco list --local-only --exact wixtoolset --limit-output 2>$null
+          if (-not ($installed -match '^wixtoolset\|')) {
             choco install wixtoolset --no-progress --yes
-            $wixTargets = Get-ChildItem -Path $wixSearchRoots -Filter 'Wix.targets' -File -Recurse -ErrorAction SilentlyContinue |
-              Sort-Object FullName -Descending |
-              Select-Object -First 1
           }
-          if (-not $wixTargets) {
-            throw 'WiX Toolset 3.x was not found after installation.'
-          }
-          $wixRoot = $wixTargets.Directory.Parent.FullName
-          $wixTool = Get-ChildItem -Path $wixSearchRoots -Filter 'candle.exe' -File -Recurse -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending |
+          $wixRoot = Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset v3.*" -Directory |
+            Sort-Object Name -Descending |
             Select-Object -First 1
-          $wixTasks = Get-ChildItem -Path $wixSearchRoots -Filter 'wixtasks.dll' -File -Recurse -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending |
+          $wixTool = Get-ChildItem $wixRoot.FullName -Filter 'candle.exe' -File -Recurse |
             Select-Object -First 1
-          if (-not $wixTool -or -not $wixTasks) {
-            throw 'WiX compiler or MSBuild tasks were not found.'
+          $wixTargets = Get-ChildItem "${env:ProgramFiles(x86)}\MSBuild\Microsoft\WiX" -Filter 'Wix.targets' -File -Recurse |
+            Select-Object -First 1
+          $wixTasks = Get-ChildItem $wixTool.Directory.FullName -Filter 'wixtasks.dll' -File |
+            Select-Object -First 1
+          if (-not $wixTool -or -not $wixTargets -or -not $wixTasks) {
+            throw 'WiX compiler or MSBuild tasks were not found in the standard WiX installation.'
           }
           "WIX_TOOL_PATH=$($wixTool.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "WIX_TARGETS_PATH=$($wixTargets.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "WIX_TASKS_PATH=$($wixTasks.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "Using WiX at $wixRoot"
+          "Using WiX at $($wixRoot.FullName)"
 
       - name: Install vcpkg dependencies
         shell: pwsh

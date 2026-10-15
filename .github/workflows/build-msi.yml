@@ -69,6 +69,69 @@ jobs:
             throw "Expected OpenSSL compatibility header was not installed: $opensslHeader"
           }
 
+      - name: Configure dependency library paths
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $projectDir = Join-Path $env:GITHUB_WORKSPACE 'contrib/win32/openssh'
+          $libDir = Join-Path $projectDir 'vcpkg_installed/x64-custom/x64-custom/lib'
+          $cryptoLib = Join-Path $libDir 'libcrypto.lib'
+
+          if (-not (Test-Path -LiteralPath $cryptoLib -PathType Leaf)) {
+            throw "Required LibreSSL import library missing: $cryptoLib"
+          }
+
+          $libDir = (Resolve-Path -LiteralPath $libDir).Path
+          $changed = 0
+
+          foreach ($project in Get-ChildItem -LiteralPath $projectDir -Filter '*.vcxproj') {
+            $xml = [System.Xml.XmlDocument]::new()
+            $xml.PreserveWhitespace = $true
+            $xml.Load($project.FullName)
+
+            $ns = [System.Xml.XmlNamespaceManager]::new($xml.NameTable)
+            $ns.AddNamespace('m', $xml.DocumentElement.NamespaceURI)
+
+            $linkSettings = $xml.SelectNodes(
+              '/m:Project/m:ItemDefinitionGroup/m:Link',
+              $ns
+            )
+
+            if ($linkSettings.Count -eq 0) {
+              continue
+            }
+
+            foreach ($link in $linkSettings) {
+              $directories = $link.SelectSingleNode(
+                'm:AdditionalLibraryDirectories',
+                $ns
+              )
+
+              if ($null -eq $directories) {
+                $directories = $xml.CreateElement(
+                  'AdditionalLibraryDirectories',
+                  $xml.DocumentElement.NamespaceURI
+                )
+                $null = $link.AppendChild($directories)
+                $directories.InnerText = '%(AdditionalLibraryDirectories)'
+              }
+
+              $directories.InnerText = "$libDir;$($directories.InnerText)"
+            }
+
+            $xml.Save($project.FullName)
+            $changed++
+            Write-Host "Configured linker paths: $($project.Name)"
+          }
+
+          if ($changed -eq 0) {
+            throw 'No project linker settings were found.'
+          }
+
+          Write-Host "Updated $changed projects."
+          Write-Host "Verified import library: $cryptoLib"
+
       - name: Build OpenSSH binaries
         id: build_binaries
         continue-on-error: true
